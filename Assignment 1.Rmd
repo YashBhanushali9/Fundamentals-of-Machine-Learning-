@@ -1,0 +1,65 @@
+---
+title: "Assignment 1 FML"
+author: "Yash Bhanushali"
+date: "31/01/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(readr)
+library(readxl)
+library(tidyverse)
+```
+
+###Importing Cars Dataset from system which was downloaded through Kaggle.com
+
+```{r}
+setwd("~/Covid report/SEM 1 BA/FML/ASSIGNMENT 1")
+library(readr)
+data <- read_csv("data.csv")
+View(data)
+
+```
+
+###Printing out descriptive statistics for a selection of quantitative and categorical variables
+```{r}
+###For Quantitative Variable
+quant1 <- data$`Engine HP`
+summary(quant1)
+quant2 <- data$`highway MPG`
+summary(quant2)
+sd(quant2)
+###For Categorical variable
+cat_1 <- data$Make
+summary(cat_1)
+data %>% group_by(data$Make)%>% summarise(total_cars= n())
+####Using this code we are able to differentiate cars based on there Makes.
+```
+
+###Transforming a variable into logarithmic form
+```{r}
+####Arranging the model based on Engine HP
+arrange_hp <-data%>% arrange(data$`Engine HP`)
+arrange_hp
+####Doing a logarithmic transformation and adding a variable name log_MSRP in the dataset
+data["log_MSRP"] <- log(data$MSRP)
+####Arranging the model according to log_MSRP
+data %>% arrange(log_MSRP)
+
+```
+
+###Plotting a histogarm and Scatterplot
+```{r}
+mpg_c <- data$`city mpg`
+###Plotting Histogram with Value of city mpg on x axis and Number of cars on Y axis
+hist(mpg_c, xlab = "City Mpg",  ylab = "Number of vehicles", main = "Histogram for City Mpg", col = "Blue")
+###Ploting a scatter plot between Engine Horse Power and Highway MPG
+plot(data$`Engine HP`,data$`highway MPG`, xlab= "Engine HP" , ylab= "Highway MPG", main= "Scatter Plot")
+
+```
+
