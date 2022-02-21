@@ -1,0 +1,106 @@
+---
+title: "ML Assignment 2"
+author: "Yash Bhanushali"
+date: "2/20/2022"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r}
+library(readr)
+library(dplyr)
+library(fastDummies)
+library(caret)
+library(class)
+```
+
+
+```{r}
+library(readr)
+UniversalBank_dataset <- read_csv("D:/FML/UniversalBank (1).csv")
+summary(UniversalBank_dataset)
+```
+
+##Datacleaning
+
+```{r}
+#eliminating ID and ZipCode Columns from Dataset 
+UniversalBank_dataset <- UniversalBank_dataset[,c(-1,-5)]
+str(UniversalBank_dataset)
+#As personal loan is predictive variable so converting it to factor
+UniversalBank_dataset$`Personal Loan` <-as.factor(UniversalBank_dataset$`Personal Loan`)
+UniversalBank_dataset$Education <-as.factor(UniversalBank_dataset$Education)
+View(UniversalBank_dataset)
+#Dummying
+library(fastDummies)
+UniversalBank_dataset_d <- dummy_cols(UniversalBank_dataset %>% select(-`Personal Loan`))
+UniversalBank_dataset_d <- UniversalBank_dataset_d %>% select(-Education) %>% 
+  mutate(`Personal Loan` = UniversalBank_dataset$`Personal Loan`)
+```
+
+##Data Partition and preprocessing
+
+```{r}
+set.seed(300)
+index <- createDataPartition(UniversalBank_dataset_d$`Personal Loan`, p=0.5, list = FALSE)
+UniversalBank_dataset_train_df <- UniversalBank_dataset_d[index,]
+UniversalBank_dataset_test_df <- UniversalBank_dataset_d[-index,]
+#normalize the data.
+scale_fun <- preProcess(UniversalBank_dataset_train_df[,-13], method = c("center", "scale"))
+UniversalBank_dataset_train_norm <- predict(scale_fun, UniversalBank_dataset_train_df[,-13])
+UniversalBank_dataset_test_norm <- predict(scale_fun, UniversalBank_dataset_test_df[,-13])
+dim(UniversalBank_dataset_train_norm)
+summary(UniversalBank_dataset_train_norm)
+summary(UniversalBank_dataset_test_norm)
+```
+##KNN Modeling
+#1. Predicting the Customer with K=1
+```{r}
+#Predicting the Customer with K=1
+Q1 <- data.frame(40, 10, 84, 2, 2, 0, 1, 0, 0, 0, 0, 1, 1)
+knn_prediction <- knn(UniversalBank_dataset_train_norm, Q1, cl=UniversalBank_dataset_train_df$`Personal Loan`, k=1, prob = 0.6)
+knn_prediction
+```
+
+#2.	Choosing value of k
+```{r}
+accuracy.df <- data.frame(k = seq(1, 13, 1), accuracy = rep(0, 13))
+for(i in 1:13) {
+                  knn <- knn(UniversalBank_dataset_train_norm, UniversalBank_dataset_test_norm, cl = UniversalBank_dataset_train_df$`Personal Loan`, k = i)
+                  accuracy.df[i, 2] <- confusionMatrix(knn, UniversalBank_dataset_test_df$`Personal Loan`)$overall[1] 
+                }
+accuracy.df
+which.max( (accuracy.df$accuracy) ) #Here, our optimal k is 3
+```
+
+#3.	Validating data using the best 'k'.
+```{r}
+knn.pred3 <- knn(UniversalBank_dataset_train_norm,UniversalBank_dataset_test_norm,cl=UniversalBank_dataset_train_df$`Personal Loan`,k=4,prob = TRUE)
+confusionMatrix(knn.pred3,UniversalBank_dataset_test_df$`Personal Loan`)
+```
+#4.	Classifying the customer using the best 'k'
+```{r}
+knn.pred4 <- knn(UniversalBank_dataset_train_norm, Q1, cl=UniversalBank_dataset_train_df$`Personal Loan`, k=4, prob = TRUE)
+knn.pred4
+```
+
+#5.	Repartitioning the data into training, validation, and test sets (50% : 30% : 20%)
+```{r}
+set.seed(400)
+index_b <- createDataPartition(UniversalBank_dataset_d$`Personal Loan`, p=0.5, list = FALSE)
+UniversalBank_dataset_training_df2 <- UniversalBank_dataset_d[index_b,]
+validation_test_idx <- UniversalBank_dataset_d[-index_b,]
+validation_test_idx_b <- createDataPartition(validation_test_idx$`Personal Loan`, p=0.6, list = FALSE)
+UniversalBank_dataset_val_df2 <- validation_test_idx[validation_test_idx_b,]
+UniversalBank_dataset_test_df2 <- validation_test_idx[-validation_test_idx_b,]
+#normalizing the data.
+scl_fun_b <- preProcess(UniversalBank_dataset_training_df2[,-13], method = c("center", "scale"))
+UniversalBank_dataset_training_norm2 <- predict(scl_fun_b, UniversalBank_dataset_training_df2[,-13])
+UniversalBank_dataset_val_norm2 <- predict(scl_fun_b, UniversalBank_dataset_val_df2[,-13])
+UniversalBank_dataset_test_norm2 <- predict(scl_fun_b, UniversalBank_dataset_test_df2[,-13])
+knn.pred5 <- knn(UniversalBank_dataset_training_norm2, UniversalBank_dataset_val_norm2 , cl=UniversalBank_dataset_training_df2$`Personal Loan`, k=4, prob = TRUE)
+confusionMatrix(knn.pred5,UniversalBank_dataset_val_df2$`Personal Loan`)
+```
