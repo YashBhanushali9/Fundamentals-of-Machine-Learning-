@@ -1,0 +1,183 @@
+---
+title: "FML Assignment 4"
+author: "Yash Bhanusali"
+date: "3/20/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(readr)
+library(dplyr)
+library(caret)
+library(factoextra)
+library(ggplot2)
+library(tidyverse)
+library(cowplot)
+```
+#### Importing Dataset
+```{r}
+Pharmaceuticals <- read_csv("C:/Users/User/OneDrive/Desktop/ML 4/Pharmaceuticals.csv")
+```
+
+ 
+```{r}
+# Summary
+summary(Pharmaceuticals)
+```
+#Cleaning the data,
+a) By using only the numerical variables from 1-9 for clustering the 21 firms. 
+"Justify the various choices made in conducting the cluster analysis,such as weights for different variables, the specific clustering algorithm(s) used, the number of clusters formed, and so on.
+
+
+```{r}
+# Checking NULL values in the dataset.
+apply(Pharmaceuticals,2,function(x){any(is.na(x))})
+# Using only the numerical variables (1 to 9) for cluster analysis
+Pharmaceuticals_1to9 <- Pharmaceuticals %>% select_if(is.numeric)
+# Scaling the data frame (z-score).
+set.seed(15)
+scale_data <- as.data.frame(scale(Pharmaceuticals_1to9))
+```
+#Following is the estimation of the optimal number of clusters.
+
+
+```{r, fig.align='left', fig.width= 8}
+wss1 <- fviz_nbclust(scale_data,FUNcluster = kmeans,method = "wss")
+sill1 <- fviz_nbclust(scale_data,FUNcluster = kmeans,method = "silhouette")
+plot_grid(wss1, sill1)
+```
+From Eblow method best K is 2 and From Silhouette Method k is 5.
+
+
+Finding optimal number of clusters.
+
+Finding IQR
+```{r}
+#Finding outliers
+outlier_dectecion <- function(x,df = Pharmaceuticals_1to9)
+{
+  q1 = quantile(df[[x]],0.25) #25th Percentile
+  q3 = quantile(df[[x]],0.75) #75th Percentile
+  IQR = q3 - q1
+  upper_bound = q3 + 1.5 * IQR
+  lower_bound = q1 - 1.5 * IQR
+  df[(df[x]<lower_bound) | (df[x]>upper_bound),x]
+}
+out <- vector('list', length(names(Pharmaceuticals_1to9)))
+for (i in seq_along(Pharmaceuticals_1to9)){
+  x1 <- outlier_dectecion(names(Pharmaceuticals_1to9)[i])
+  out[[i]] <- x1
+}
+names(out) <- names(Pharmaceuticals_1to9)
+AfterHandling_outliers <- Pharmaceuticals_1to9 %>% 
+  filter(Market_Cap != out[[1]], Beta != out[[2]], 
+         !(PE_Ratio %in% out[[3]]), ROE != out[[4]], !(Leverage %in% out[[7]]))
+```
+Estimating the optimal number of clusters 
+
+
+Elbow Method and Silhouette Method
+```{r, fig.align='center', fig.width= 10}
+  
+wss2 <- fviz_nbclust(AfterHandling_outliers,FUNcluster = kmeans,method = "wss")
+sil2 <- fviz_nbclust(AfterHandling_outliers,FUNcluster = kmeans,method = "silhouette")
+plot_grid(wss2, sil2)
+```
+#Considering scaled data without omitting outliers, for model buidling.
+K = 2
+```{r}
+model_K2 <- kmeans(scale_data, centers = 2, nstart = 25)
+model_K2
+```
+
+
+K = 3
+```{r}
+model_K3 <- kmeans(scale_data, centers = 3, nstart = 25)
+model_K3
+```
+```{r, message = FALSE, fig.align='center', fig.width= 10}
+K_2 <- fviz_cluster(model_K2,data = scale_data, main = 'Cluster plot K=2')
+K_3 <- fviz_cluster(model_K3,data = scale_data, main = 'Cluster plot K=3')
+plot_grid(K_2, K_3)
+```
+# Aftering taking into consideration all the observations, 3 looks like an optimal k.
+
+#Q2: Cluster analysis
+```{r, fig.align='center', fig.width= 10}
+clusters_centers <- data.frame(model_K3$centers) %>% 
+  rowid_to_column() %>% 
+  gather('Columns', 'Centers', -1)
+ggplot(clusters_centers, aes(x = Columns, y = Centers, color = as.factor(rowid))) + 
+  geom_line(aes(group = as.factor(rowid))) + geom_point() + 
+  labs(color = "Cluster", title = 'Cluster Analysis') +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) 
+```
+From the above graph we can infer that all cluster patterns are different;
+
+
+1)Red: Companies have good Asset turnover and beta, But it's  leverage, market cap, Net profit margin, Revenue Growth, ROA and ROE are low but it has good PE Ratio.
+
+Companies in Red have a good assest turnover and beta, but it's leverage, market cap, net profit margin, revenue, growth, ROA and ROE are low but it has good PE ration.
+
+
+2)Green: Companies have low asset value(Asset turnover, ROA, ROE), But good revenue growth, beta and leverage.
+
+Companies in Green, have low assest value(Assest turnover, ROA, ROE), but good revenue growth, beta and leverage.
+
+
+3)Blue: Companies have good Asset value(Asset turnover, ROA, ROE) and market cap, But lacks in Beta, Leverage, PE Ratio and Revenue Growth.
+Companies in blue have good assest value (Assest turnover, ROA, ROE) and market cap, but lacks Beta, Leverage, PE Ration and Revenue Growth.
+
+
+
+#Q3: I am applying above cluster patterns.
+```{r}
+(Pharmaceuticals_10to12 <-  Pharmaceuticals %>% select(c("Median_Recommendation","Location","Exchange")) %>% 
+  mutate(cluster_pattern = model_K3$cluster) %>% arrange(desc(cluster_pattern)))
+```
+
+```{r, fig.align='left', fig.width= 8}
+ggplot(Pharmaceuticals_10to12, aes(fill = Median_Recommendation, 
+x = as.factor(cluster_pattern))) + 
+  geom_bar(position = 'dodge2') + 
+labs(x="Clusters", y="Count",
+     title = "Distribution of Median Recommendation in each Cluster")
+```
+
+
+From the above graph we can infer that Cluster1 has moderate buy and sell ratio option which is unique from other clusters and Cluster2 has High Hold and sell ratio Cluster3 has good hold option.
+
+
+```{r, fig.align = 'left', fig.width= 8}
+ggplot(Pharmaceuticals_10to12, aes(fill = Location, 
+x = as.factor(cluster_pattern))) + 
+  geom_bar(position = 'dodge2') + 
+labs(x="Clusters", y="Count",
+     title = "Distribution of Locations in each Cluster")
+```
+
+```{r, fig.align='left', fig.width= 8}
+ggplot(Pharmaceuticals_10to12, aes(fill = Exchange, 
+x = as.factor(cluster_pattern))) + 
+  geom_bar(position = 'dodge2') + 
+labs(x="Clusters", y="Count",
+     title = "Cluster wise distribution of Stock Exchange")
+```
+
+#Q4: Providing an appropriate name for each cluster.
+
+#Small Cap: High PE Ratio. 
+
+
+#Mid Cap: Fast growing with less Market capital and assets.
+
+
+#Large Cap: High Assets and Market capital.
